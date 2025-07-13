@@ -98,7 +98,7 @@ class Inference:
         output = [text async for text in self._stream(input)]
         return "".join(output)
 
-    @modal.fastapi_endpoint  # @modal.web_endpoint()
+    @modal.fastapi_endpoint()  # @modal.web_endpoint()
     async def web(self, input: str):
         return StreamingResponse(self._stream(input), media_type="text/event-stream")
 
