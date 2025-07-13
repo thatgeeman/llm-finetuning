@@ -1,11 +1,11 @@
 import time
-import yaml
 from pathlib import Path
 
 import modal
+import yaml
 from fastapi.responses import StreamingResponse
 
-from .common import stub, vllm_image, VOLUME_CONFIG
+from .common import VOLUME_CONFIG, stub, vllm_image
 
 N_INFERENCE_GPU = 2
 
@@ -22,7 +22,7 @@ def get_model_path_from_run(path: Path) -> Path:
 
 
 @stub.cls(
-    gpu=modal.gpu.H100(count=N_INFERENCE_GPU),
+    gpu="H100:2",  # modal.gpu.H100(count=N_INFERENCE_GPU),
     image=vllm_image,
     volumes=VOLUME_CONFIG,
     allow_concurrent_inputs=30,
@@ -98,7 +98,7 @@ class Inference:
         output = [text async for text in self._stream(input)]
         return "".join(output)
 
-    @modal.web_endpoint()
+    @modal.fastapi_endpoint  # @modal.web_endpoint()
     async def web(self, input: str):
         return StreamingResponse(self._stream(input), media_type="text/event-stream")
 

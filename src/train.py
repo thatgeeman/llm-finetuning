@@ -1,17 +1,18 @@
+import os
+import secrets
 from datetime import datetime
 from pathlib import Path
-import secrets
+
 import modal
-import os
 
 from .common import (
-    stub,
-    axolotl_image,
     VOLUME_CONFIG,
+    axolotl_image,
+    stub,
 )
 
 N_GPUS = int(os.environ.get("N_GPUS", 2))
-GPU_CONFIG = os.environ.get("GPU_CONFIG", modal.gpu.H100(count=N_GPUS))
+# GPU_CONFIG = os.environ.get("GPU_CONFIG", modal.gpu.H100(count=N_GPUS))
 
 
 def print_common_training_issues(config):
@@ -48,10 +49,10 @@ def run_cmd(cmd: str, run_folder: str):
 
 @stub.function(
     image=axolotl_image,
-    gpu=GPU_CONFIG,
+    gpu="H100:2",  # GPU_CONFIG,
     volumes=VOLUME_CONFIG,
     timeout=3600 * 24,
-    _allow_background_volume_commits=True,
+    # _allow_background_volume_commits=True,
 )
 def train(run_folder: str, output_dir: str):
     import torch
@@ -86,10 +87,15 @@ def merge(run_folder: str, output_dir: str):
     VOLUME_CONFIG["/runs"].commit()
 
 
-@stub.function(image=axolotl_image, timeout=60 * 30, volumes=VOLUME_CONFIG)
+@stub.function(
+    image=axolotl_image,
+    timeout=60 * 30,
+    volumes=VOLUME_CONFIG,
+    secrets=[modal.Secret.from_name("huggingface")],
+)
 def launch(config_raw: str, data_raw: str):
-    from huggingface_hub import snapshot_download
     import yaml
+    from huggingface_hub import snapshot_download
 
     # Ensure the base model is downloaded
     # TODO(gongy): test if this works with a path to previous fine-tune
@@ -97,7 +103,11 @@ def launch(config_raw: str, data_raw: str):
     model_name = config["base_model"]
 
     try:
-        snapshot_download(model_name, local_files_only=True)
+        snapshot_download(
+            model_name,
+            local_files_only=False,
+            token=os.environ.get("HUGGINGFACE_TOKEN"),
+        )
         print(f"Volume contains {model_name}.")
     except FileNotFoundError:
         print(f"Downloading {model_name} ...")
